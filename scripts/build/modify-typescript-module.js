@@ -21,12 +21,12 @@ function* getModules(text) {
     if (/\S/.test(code)) {
       const esmRegExp = new RegExp(
         [
-          "\\s*var (?<initFunctionName>\\w+) = __esm\\({",
+          String.raw`\s*var (?<initFunctionName>\w+) = __esm\({`,
           `\\s*"${escapeStringRegexp(path)}"\\(\\) {`,
           ".*",
-          "\\s*}",
-          "\\s*}\\);",
-        ].join("\\n"),
+          String.raw`\s*}`,
+          String.raw`\s*}\);`,
+        ].join(String.raw`\n`),
         "s",
       );
       const match = code.match(esmRegExp);
@@ -56,11 +56,13 @@ class TypeScriptModuleSource {
 
   replaceModule(module, replacement) {
     if (typeof module === "string") {
-      module = this.modules.find((searching) => searching.path === module);
-    }
+      const found = this.modules.find((searching) => searching.path === module);
 
-    if (!module) {
-      throw Object.assign(new Error("Module not found"), { module });
+      if (!found) {
+        throw new Error(`Module '${module}' not found`);
+      }
+
+      module = found;
     }
 
     const { esmModuleInitFunctionName } = module;
@@ -77,22 +79,22 @@ class TypeScriptModuleSource {
   }
 
   removeModule(module) {
-    if (typeof module === "string") {
-      module = this.modules.find((searching) => searching.path === module);
-    }
-
     return this.replaceModule(module, "");
+  }
+
+  hasModule(module) {
+    return this.modules.some((searching) => searching.path === module);
   }
 
   replaceAlignedCode({ start, end, replacement = "" }) {
     const regexp = new RegExp(
       [
         "(?<=\n)",
-        "(?<indentString>\\s*)",
+        String.raw`(?<indentString>\s*)`,
         escapeStringRegexp(start),
         ".*?",
         "(?<=\n)",
-        "\\k<indentString>",
+        String.raw`\k<indentString>`,
         escapeStringRegexp(end),
         "(?=\n)",
       ].join(""),
@@ -278,7 +280,9 @@ function modifyTypescriptModule(text) {
   );
 
   // `pnp`
-  source.removeModule("src/compiler/pnp.ts");
+  if (source.hasModule("src/compiler/pnp.ts")) {
+    source.removeModule("src/compiler/pnp.ts");
+  }
 
   /* spell-checker: disable */
   // `ts.createParenthesizerRules`
