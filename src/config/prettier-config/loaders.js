@@ -23,9 +23,28 @@ async function loadJs(file) {
 }
 
 async function loadTs(file) {
-  await import("tsx");
-  const module = await import(pathToFileURL(file).href);
-  return module.default;
+  const { tsImport } = await import("tsx/esm/api").then(
+    (tsx) => tsx,
+    (error) => {
+      if (
+        error.code === "ERR_MODULE_NOT_FOUND" &&
+        error.message.startsWith("Cannot find package")
+      ) {
+        throw new Error(
+          'To load TypeScript config files, you need to install the "tsx" package: \nnpm -D install tsx\nyarn add -D tsx\npnpm add -D tsx\nbun add -D tsx',
+        );
+      }
+
+      throw error;
+    },
+  );
+
+  const module = await tsImport(pathToFileURL(file).href, {
+    parentURL: import.meta.url,
+    tsconfig: false,
+  });
+
+  return module?.default ?? module;
 }
 
 async function loadConfigFromPackageJson(file) {
