@@ -22,29 +22,45 @@ async function loadJs(file) {
   return module.default;
 }
 
+const canNotLoadTsFiles = Symbol("Can not load TypeScript files natively");
+
+async function tryLoadingTsFilesNatively(file) {
+  try {
+    return await import(pathToFileURL(file).href);
+  } catch {
+    return canNotLoadTsFiles;
+  }
+}
+
 async function loadTs(file) {
-  const { tsImport } = await import("tsx/esm/api").then(
-    (tsx) => tsx,
-    (error) => {
-      if (
-        error.code === "ERR_MODULE_NOT_FOUND" &&
-        error.message.startsWith("Cannot find package")
-      ) {
-        throw new Error(
-          'To load TypeScript config files, you need to install the "tsx" package: \nnpm -D install tsx\nyarn add -D tsx\npnpm add -D tsx\nbun add -D tsx',
-        );
-      }
+  const module = await tryLoadingTsFilesNatively(file);
 
-      throw error;
-    },
-  );
+  if (module === canNotLoadTsFiles) {
+    const { tsImport } = await import("tsx/esm/api").then(
+      (tsx) => tsx,
+      (error) => {
+        if (
+          error.code === "ERR_MODULE_NOT_FOUND" &&
+          error.message.startsWith("Cannot find package")
+        ) {
+          throw new Error(
+            'To load TypeScript config files, you need to install the "tsx" package: \nnpm -D install tsx\nyarn add -D tsx\npnpm add -D tsx\nbun add -D tsx',
+          );
+        }
 
-  const module = await tsImport(pathToFileURL(file).href, {
-    parentURL: import.meta.url,
-    tsconfig: false,
-  });
+        throw error;
+      },
+    );
 
-  return module?.default ?? module;
+    const module = await tsImport(pathToFileURL(file).href, {
+      parentURL: import.meta.url,
+      tsconfig: false,
+    });
+
+    return (await module?.default) ?? module;
+  }
+
+  return (await module?.default) ?? module;
 }
 
 async function loadConfigFromPackageJson(file) {
