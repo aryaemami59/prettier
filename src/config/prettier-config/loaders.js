@@ -22,43 +22,43 @@ async function loadJs(file) {
   return module.default;
 }
 
-const canNotLoadTsFiles = Symbol("Can not load TypeScript files natively");
-
-async function tryLoadingTsFilesNatively(file) {
-  try {
-    return await import(pathToFileURL(file).href);
-  } catch {
-    return canNotLoadTsFiles;
-  }
+function isRunningInBun() {
+  return Boolean(globalThis.Bun) || Boolean(globalThis.process?.versions?.bun);
 }
 
+function isRunningInDeno() {
+  return Boolean(globalThis.Deno);
+}
+
+const isBun = isRunningInBun();
+
+const isDeno = isRunningInDeno();
+
 async function loadTs(file) {
-  const module = await tryLoadingTsFilesNatively(file);
-
-  if (module === canNotLoadTsFiles) {
-    const { tsImport } = await import("tsx/esm/api").then(
-      (tsx) => tsx,
-      (error) => {
-        if (
-          error.code === "ERR_MODULE_NOT_FOUND" &&
-          error.message.startsWith("Cannot find package")
-        ) {
-          throw new Error(
-            'To load TypeScript config files, you need to install the "tsx" package: \nnpm -D install tsx\nyarn add -D tsx\npnpm add -D tsx\nbun add -D tsx',
-          );
-        }
-
-        throw error;
-      },
-    );
-
-    const module = await tsImport(pathToFileURL(file).href, {
-      parentURL: import.meta.url,
-      tsconfig: false,
-    });
-
-    return (await module?.default) ?? module;
+  if (isBun || isDeno) {
+    return await loadJs(file);
   }
+
+  const { tsImport } = await import("tsx/esm/api").then(
+    (tsx) => tsx,
+    (error) => {
+      if (
+        error.code === "ERR_MODULE_NOT_FOUND" &&
+        error.message.startsWith("Cannot find package")
+      ) {
+        throw new Error(
+          'To load TypeScript config files, you need to install the "tsx" package: \nnpm -D install tsx\nyarn add -D tsx\npnpm add -D tsx\nbun add -D tsx',
+        );
+      }
+
+      throw error;
+    },
+  );
+
+  const module = await tsImport(pathToFileURL(file).href, {
+    parentURL: import.meta.url,
+    tsconfig: false,
+  });
 
   return (await module?.default) ?? module;
 }
